@@ -237,6 +237,7 @@ public final class PowerManagerService extends SystemService
     // Timestamp of the last call to user activity.
     private long mLastUserActivityTime;
     private long mLastUserActivityTimeNoChangeLights;
+	private long mLastButtonActivityTime;
 
     // Timestamp of last interactive power hint.
     private long mLastInteractivePowerHintTime;
@@ -1155,6 +1156,10 @@ public final class PowerManagerService extends SystemService
                     return true;
                 }
             } else {
+				if (eventTime > mLastButtonActivityTime && (event & PowerManager.USER_ACTIVITY_EVENT_BUTTON) != 0) {
+                    mLastButtonActivityTime = eventTime;
+                    mDirty |= DIRTY_USER_ACTIVITY;
+                }
                 if (eventTime > mLastUserActivityTime) {
                     mLastUserActivityTime = eventTime;
                     mDirty |= DIRTY_USER_ACTIVITY;
@@ -1667,7 +1672,7 @@ public final class PowerManagerService extends SystemService
                             mKeyboardLight.setBrightness(mKeyboardVisible ?
                                     keyboardBrightness : 0);
                             if (mButtonTimeout != 0
-                                    && now > mLastUserActivityTime + mButtonTimeout) {
+                                    && now > mLastButtonActivityTime + mButtonTimeout) {
                                 mButtonsLight.setBrightness(0);
                             } else {
                                 if (!mProximityPositive) {
@@ -3275,7 +3280,11 @@ public final class PowerManagerService extends SystemService
                     }
                 }
             };
-            runWithProximityCheck(r);
+            if (checkProximity) {
+                runWithProximityCheck(r);
+            } else {
+                r.run();
+            }
         }
 
         private void runWithProximityCheck(Runnable r) {
@@ -3284,16 +3293,12 @@ public final class PowerManagerService extends SystemService
                 return;
             }
 
-            boolean withProximity = mProximityWakeSupported && mProximityWakeEnabled
-                    && mProximitySensor != null;
+            TelephonyManager tm = (TelephonyManager)mContext.getSystemService(
+                    Context.TELEPHONY_SERVICE);
+            boolean hasIncomingCall = tm.getCallState() == TelephonyManager.CALL_STATE_RINGING;
 
-            if (withProximity) {
-                TelephonyManager tm = (TelephonyManager) mContext.getSystemService(
-                        Context.TELEPHONY_SERVICE);
-                withProximity = tm.getCallState() != TelephonyManager.CALL_STATE_RINGING;
-            }
-
-            if (withProximity) {
+            if (mProximityWakeSupported && mProximityWakeEnabled && mProximitySensor != null
+                    && !hasIncomingCall) {
                 Message msg = mHandler.obtainMessage(MSG_WAKE_UP);
                 msg.obj = r;
                 mHandler.sendMessageDelayed(msg, mProximityTimeOut);
@@ -3323,6 +3328,8 @@ public final class PowerManagerService extends SystemService
                         if (distance >= PROXIMITY_NEAR_THRESHOLD ||
                                 distance >= mProximitySensor.getMaximumRange()) {
                             r.run();
+                        } else {
+                            Slog.w(TAG, "Not waking up.  Proximity sensor blocked.");
                         }
                     }
 
