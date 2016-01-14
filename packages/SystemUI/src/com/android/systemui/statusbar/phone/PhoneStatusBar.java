@@ -305,10 +305,14 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
     public static final int FONT_THIN_ITALIC = 7;
     public static final int FONT_CONDENSED = 8;
     public static final int FONT_CONDENSED_ITALIC = 9;
-    public static final int FONT_CONDENSED_BOLD = 10;
-    public static final int FONT_CONDENSED_BOLD_ITALIC = 11;
-    public static final int FONT_MEDIUM = 12;
-    public static final int FONT_MEDIUM_ITALIC = 13;
+    public static final int FONT_CONDENSED_LIGHT = 10;
+    public static final int FONT_CONDENSED_LIGHT_ITALIC = 11;
+    public static final int FONT_CONDENSED_BOLD = 12;
+    public static final int FONT_CONDENSED_BOLD_ITALIC = 13;
+    public static final int FONT_MEDIUM = 14;
+    public static final int FONT_MEDIUM_ITALIC = 15;
+    public static final int FONT_BLACK = 16;
+    public static final int FONT_BLACK_ITALIC = 17;
 
     /** Allow some time inbetween the long press for back and recents. */
     private static final int LOCK_TO_APP_GESTURE_TOLERENCE = 100;
@@ -950,6 +954,12 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
             case FONT_CONDENSED_ITALIC:
                 mWeatherTempView.setTypeface(Typeface.create("sans-serif-condensed", Typeface.ITALIC));
                 break;
+            case FONT_CONDENSED_LIGHT:
+                mWeatherTempView.setTypeface(Typeface.create("sans-serif-condensed-light", Typeface.NORMAL));
+                break;
+            case FONT_CONDENSED_LIGHT_ITALIC:
+                mWeatherTempView.setTypeface(Typeface.create("sans-serif-condensed-light", Typeface.ITALIC));
+                break;
             case FONT_CONDENSED_BOLD:
                 mWeatherTempView.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
                 break;
@@ -961,6 +971,12 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
                 break;
             case FONT_MEDIUM_ITALIC:
                 mWeatherTempView.setTypeface(Typeface.create("sans-serif-medium", Typeface.ITALIC));
+                break;
+            case FONT_BLACK:
+                mWeatherTempView.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
+                break;
+            case FONT_BLACK_ITALIC:
+                mWeatherTempView.setTypeface(Typeface.create("sans-serif-black", Typeface.ITALIC));
                 break;
         }
         mWeatherTempView.setVisibility(View.VISIBLE);
@@ -1176,7 +1192,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         if (currentTheme != null) {
             mCurrentTheme = (ThemeConfig)currentTheme.clone();
         } else {
-            mCurrentTheme = ThemeConfig.getSystemTheme();
+            mCurrentTheme = ThemeConfig.getBootTheme(mContext.getContentResolver());
         }
 
         mStatusBarWindow = new StatusBarWindowView(mContext, null, mPowerManager);
@@ -2069,7 +2085,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
     }
 
     private Resources getNavbarThemedResources() {
-        String pkgName = mCurrentTheme.getOverlayPkgNameForApp(ThemeConfig.SYSTEMUI_NAVBAR_PKG);
+        String pkgName = mCurrentTheme.getOverlayForNavBar();
         Resources res = null;
         try {
             res = mContext.getPackageManager().getThemedResourcesForApplication(
@@ -4581,9 +4597,6 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         repositionNavigationBar();
         addHeadsUpView();
         attachPieContainer(isPieEnabled());
-        if (mNavigationBarView != null) {
-            mNavigationBarView.updateResources(getNavbarThemedResources());
-        }
 
         // recreate StatusBarIconViews.
         for (int i = 0; i < nIcons; i++) {
@@ -4646,6 +4659,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         // detect theme change.
         ThemeConfig newTheme = newConfig != null ? newConfig.themeConfig : null;
         final boolean updateStatusBar = shouldUpdateStatusbar(mCurrentTheme, newTheme);
+        final boolean updateNavBar = shouldUpdateNavbar(mCurrentTheme, newTheme);
         if (newTheme != null) mCurrentTheme = (ThemeConfig) newTheme.clone();
         if (updateStatusBar) {
             recreateStatusBar();
@@ -4688,7 +4702,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         }
 
         if (mNavigationBarView != null)  {
-            mNavigationBarView.updateResources(getNavbarThemedResources());
+            if (updateNavBar) mNavigationBarView.updateResources(getNavbarThemedResources());
             updateSearchPanel();
             checkBarModes();
         }
@@ -4716,6 +4730,25 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
                 (fonts != null && !fonts.equals(oldTheme.getFontPkgName())) ||
                 (icons != null && !icons.equals(oldTheme.getIconPackPkgName())) ||
                 newTheme.getLastThemeChangeRequestType() == RequestType.THEME_UPDATED);
+    }
+
+    /**
+     * Determines if we need to update the navbar resources due to a theme change.  We currently
+     * check if the overlay for the navbar, or request type is {@link RequestType.THEME_UPDATED}.
+     *
+     * @param oldTheme
+     * @param newTheme
+     * @return True if we should update the navbar
+     */
+    private boolean shouldUpdateNavbar(ThemeConfig oldTheme, ThemeConfig newTheme) {
+        // no newTheme, so no need to update navbar
+        if (newTheme == null) return false;
+
+        final String overlay = newTheme.getOverlayForNavBar();
+
+        return oldTheme == null ||
+                (overlay != null && !overlay.equals(oldTheme.getOverlayForNavBar()) ||
+                        newTheme.getLastThemeChangeRequestType() == RequestType.THEME_UPDATED);
     }
 
     private void updateClockSize() {
